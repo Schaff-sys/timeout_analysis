@@ -20,21 +20,12 @@ if not all([db_user, db_password, db_host, db_port, db_name]):
 engine = create_engine(f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}")
 
 
-# List all tables in the 'public' schema
-with engine.connect() as conn:
-    result = conn.execute(text("""
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public'
-        ORDER BY table_name;
-    """))
-    tables = result.fetchall()
-    print(tables)
-
-
 # Read the entire table into a DataFrame
-df = pd.read_sql_query(text("SELECT * FROM events_dates_merged2343;"), con=engine)
-
-print(df.head())  # show first few rows
+df = pd.read_sql_query(text("SELECT * FROM events2343;"), con=engine)
 
 
+total_shots = df['type'] == 'Shot'
+total_goals = df[(df['type'] == 'Shot') & (df['shot_isGoal'] == True)][['type', 'shot_isGoal']]
+
+goal_percentage_normal = (len(total_goals) / total_shots.sum()) * 100
+print(f"Goal Percentage (Normal): {goal_percentage_normal:.2f}%")
