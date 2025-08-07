@@ -4,6 +4,11 @@ from dotenv import load_dotenv
 import os 
 from pathlib import Path
 
+
+
+# -------------------
+# Environment Setup
+# -------------------
 env_path = Path(__file__).resolve().parent / ".env"
 load_dotenv(dotenv_path=env_path, override=True)
 
@@ -109,7 +114,7 @@ def general_shot_percentage(team_id, df_exclusions):
         success_rate = (total_successes/total_attempts) * 100
 
         rows = {
-            'teamid': team_id,
+            'team_id': team_id,
             'success rate immediate': success_rate,
             'exclusion rate immediate': exclusion_rate,
             'total successes immediate': total_successes,
@@ -185,18 +190,6 @@ for team in teams:
 df_timeout_results = pd.DataFrame(timeout_results)
 
 
-merged_df = pd.merge(df_exclusion_results, df_timeout_results, left_on='teamid', right_on='team_id', how='outer')
-
-
-
-
-
-
-
-
-
-
-
 
 # Calculating 3 min success rate
 def get_timeout_values_4mins(team, df_exclusions):
@@ -232,7 +225,7 @@ def get_timeout_values_4mins(team, df_exclusions):
         success_rate = (total_successes/total_attempts) * 100
 
         rows = {
-            'teamid': team,
+            'team_id': team,
             'success rate 4mins': success_rate,
             'exclusion rate 4mins': exclusion_rate,
             'total successes 4mins': total_successes,
@@ -253,4 +246,83 @@ for team in teams:
 df_timeout_results4mins = pd.DataFrame(timeout_results4)
 
 
-print(df_timeout_results4mins)
+# Calculating 2 min success rate
+def get_timeout_values_2mins(team, df_exclusions):
+        results = []
+        all_blocks = []
+
+        for idx, row in df[df['timeout_teamId'].notnull() & (df['team_id'] == team)].iterrows():
+                timeout_time = row['game_time_seconds'] #Obtain values of teams calling timeouts
+                
+                # Start with the row where timeout happens
+                block = [row]
+                
+                # Look forward through the DataFrame
+                for i in range(idx + 1, len(df)):
+                    if timeout_time - df.loc[i, 'game_time_seconds'] <= 120 and df.loc[i, 'matchId'] == row['matchId']:
+                        block.append(df.loc[i])
+                    else:
+                        break  # Stop if team_id changes
+
+                # Convert block list to DataFrame and store
+                all_blocks.extend(block)
+
+        timeout_df_general = pd.DataFrame(all_blocks)
+        timeout_df_general = timeout_df_general.drop_duplicates()
+        timeout_df_general_team = timeout_df_general[timeout_df_general['team_id'] == team]  # Get the team_id from the first row
+
+        exclusion_rate = df_exclusions[df_exclusions['team_id'] == team]['exclusion_success_rate'].iloc[0]  # Exclusion rate taken from previously calculated database
+        print(exclusion_rate)
+        total_successes = len(timeout_df_general_team[timeout_df_general_team['shot_isGoal'].fillna(False).astype(bool)]) + ((len(timeout_df_general_team[timeout_df_general_team['type']=='Exclusion'])) * exclusion_rate) # Total number of times an attack results in an exclusion or shot which is a goal (Exclusion is multiplied by rate to get probability of goal)
+        print(total_successes)
+        total_attempts = len(timeout_df_general_team[timeout_df_general_team['team_id'] != timeout_df_general_team['team_id_last']]) + (timeout_df_general_team['timeout_teamId']==team).sum() # Total number of attacks (Values in dataframe adjusted to always show teamId as a value beneficial to the attacking team)
+        print(total_attempts)
+        success_rate = (total_successes/total_attempts) * 100
+
+        rows = {
+            'team_id': team,
+            'success rate 2mins': success_rate,
+            'exclusion rate 2mins': exclusion_rate,
+            'total successes 2mins': total_successes,
+            'total attempts 2mins': total_attempts
+        }
+
+        results.append(rows)
+
+        return(results)
+
+
+timeout_results2 = []  # To collect timeout values for each team
+
+for team in teams:  
+    result2 = get_timeout_values_2mins(team, df_exclusions)  # This returns a list with one dict inside
+    timeout_results2.extend(result2)  # Extend since result is a list
+
+df_timeout_results2mins = pd.DataFrame(timeout_results2)
+
+
+merged_df = pd.merge(
+    df_exclusion_results,
+    df_timeout_results2mins,
+    left_on='team_id',
+    right_on='team_id',
+    how='outer'
+)
+
+merged_df = pd.merge(
+    merged_df,
+    df_timeout_results4mins,
+    left_on='team_id',
+    right_on='team_id',
+    how='outer'
+)
+
+merged_df = pd.merge(
+    merged_df,
+    df_timeout_results,
+    left_on='team_id',
+    right_on='team_id',
+    how='outer'
+)
+
+merged_df.to_csv('timeout_analysis_results.csv', index=False)
