@@ -115,10 +115,7 @@ def general_shot_percentage(team_id, df_exclusions):
 
         rows = {
             'team_id': team_id,
-            'success rate immediate': success_rate,
-            'exclusion rate immediate': exclusion_rate,
-            'total successes immediate': total_successes,
-            'total attempts immediate': total_attempts
+            'success rate general': success_rate
         }
 
         return rows
@@ -136,7 +133,7 @@ df_exclusion_results = pd.DataFrame(exclusion_results)
 ## Specific calculations for timeouts 
 # Calculating immediate success rate - immediate impact of timeout on following attack 
 
-def get_timeout_values_immediate(team):
+def get_timeout_values_immediate(team, df_exclusions):
         results = []
         all_blocks = []
 
@@ -162,17 +159,19 @@ def get_timeout_values_immediate(team):
 
         team_timeout_df = timeout_df[timeout_df['team_id'] == team]  # Filter for the specific team
 
+        exclusion_rate = df_exclusions[df_exclusions['team_id'] == team]['exclusion_success_rate'].iloc[0]
+
         timeouts_taken = team_timeout_df['timeout_teamId'].notnull().sum()
 
         successful_timeouts = team_timeout_df['shot_isGoal'].fillna(False).astype(bool).sum()
 
         timeout_leadingto_exclusion = len(team_timeout_df[team_timeout_df['type'] == 'Exclusion'])
 
+        success_rate = (successful_timeouts + (timeout_leadingto_exclusion * exclusion_rate)) / timeouts_taken * 100 if timeouts_taken > 0 else 0
+
         rows = {
              'team_id': team,
-             'timeouts_taken': timeouts_taken,
-             'successful_timeouts': successful_timeouts,
-             'timeout_leadingto_exclusion': timeout_leadingto_exclusion,
+             'success rate immediate': success_rate
         }
         results.append(rows)
 
@@ -183,7 +182,7 @@ def get_timeout_values_immediate(team):
 timeout_results = []  # To collect timeout values for each team
 
 for team in teams:  
-    result = get_timeout_values_immediate(team)  # This returns a list with one dict inside
+    result = get_timeout_values_immediate(team, df_exclusions)  # This returns a list with one dict inside
     timeout_results.extend(result)  # Extend since result is a list
 
 # Optionally turn into a DataFrame
@@ -217,19 +216,13 @@ def get_timeout_values_4mins(team, df_exclusions):
         timeout_df_general_team = timeout_df_general[timeout_df_general['team_id'] == team]  # Get the team_id from the first row
 
         exclusion_rate = df_exclusions[df_exclusions['team_id'] == team]['exclusion_success_rate'].iloc[0]  # Exclusion rate taken from previously calculated database
-        print(exclusion_rate)
         total_successes = len(timeout_df_general_team[timeout_df_general_team['shot_isGoal'].fillna(False).astype(bool)]) + ((len(timeout_df_general_team[timeout_df_general_team['type']=='Exclusion'])) * exclusion_rate) # Total number of times an attack results in an exclusion or shot which is a goal (Exclusion is multiplied by rate to get probability of goal)
-        print(total_successes)
-        total_attempts = len(timeout_df_general_team[timeout_df_general_team['team_id'] != timeout_df_general_team['team_id_last']]) + (timeout_df_general_team['timeout_teamId']==team).sum() # Total number of attacks (Values in dataframe adjusted to always show teamId as a value beneficial to the attacking team)
-        print(total_attempts)
+        total_attempts = len(timeout_df_general_team[timeout_df_general_team['team_id'] != timeout_df_general_team['team_id_last']]) + (timeout_df_general_team['timeout_teamId']==team).sum() # Total number of attacks (Values in dataframe adjusted to always show teamId as a value beneficial to the attacking team
         success_rate = (total_successes/total_attempts) * 100
 
         rows = {
             'team_id': team,
-            'success rate 4mins': success_rate,
-            'exclusion rate 4mins': exclusion_rate,
-            'total successes 4mins': total_successes,
-            'total attempts 4mins': total_attempts
+            'success rate 4mins': success_rate
         }
 
         results.append(rows)
@@ -272,19 +265,13 @@ def get_timeout_values_2mins(team, df_exclusions):
         timeout_df_general_team = timeout_df_general[timeout_df_general['team_id'] == team]  # Get the team_id from the first row
 
         exclusion_rate = df_exclusions[df_exclusions['team_id'] == team]['exclusion_success_rate'].iloc[0]  # Exclusion rate taken from previously calculated database
-        print(exclusion_rate)
         total_successes = len(timeout_df_general_team[timeout_df_general_team['shot_isGoal'].fillna(False).astype(bool)]) + ((len(timeout_df_general_team[timeout_df_general_team['type']=='Exclusion'])) * exclusion_rate) # Total number of times an attack results in an exclusion or shot which is a goal (Exclusion is multiplied by rate to get probability of goal)
-        print(total_successes)
         total_attempts = len(timeout_df_general_team[timeout_df_general_team['team_id'] != timeout_df_general_team['team_id_last']]) + (timeout_df_general_team['timeout_teamId']==team).sum() # Total number of attacks (Values in dataframe adjusted to always show teamId as a value beneficial to the attacking team)
-        print(total_attempts)
         success_rate = (total_successes/total_attempts) * 100
 
         rows = {
             'team_id': team,
-            'success rate 2mins': success_rate,
-            'exclusion rate 2mins': exclusion_rate,
-            'total successes 2mins': total_successes,
-            'total attempts 2mins': total_attempts
+            'success rate 2mins': success_rate
         }
 
         results.append(rows)
