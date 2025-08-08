@@ -1,0 +1,13 @@
+Test,Condition,Statistic,p-value
+Paired t-test,2mins,,
+Paired t-test,4mins,,
+Paired t-test,immediate,,
+Wilcoxon,2mins,,
+Wilcoxon,4mins,,
+Wilcoxon,immediate,,
+Pearson,2mins,,
+Pearson,4mins,,
+Pearson,immediate,,
+Spearman,2mins,,
+Spearman,4mins,,
+Spearman,immediate,,

@@ -3,7 +3,7 @@ from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 import os 
 from pathlib import Path
-
+from scipy import stats 
 
 
 # -------------------
@@ -26,7 +26,7 @@ engine = create_engine(f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}
 
 ## Loading and adjusting data
 # Read the entire table into a DataFrame
-df = pd.read_sql_query(text("SELECT * FROM events_dates_merged_ordered2343;"), con=engine)
+df = pd.read_sql_query(text("SELECT * FROM events_dates_merged_ordered_withnames2343;"), con=engine)
 
 # Alter dataframe to include teamId from previous action in every row
 df['team_id_last'] = df['team_id'].shift(1)
@@ -37,12 +37,7 @@ df['game_time_seconds_last'] = df['game_time_seconds'].shift(1)
 # List of teams for for loops 
 teams = df['team_id'].dropna().unique().astype(int).tolist()
 
-
-
-
-
-
-
+teamnames = df[['team_id', 'team_name']]
 
 
 ## Caluclations for general success rate 
@@ -312,4 +307,78 @@ merged_df = pd.merge(
     how='outer'
 )
 
+merged_df = pd.merge(
+    merged_df,
+    teamnames,
+    left_on='team_id',
+    right_on='team_id',
+    how='outer'
+)
+
 merged_df.to_csv('timeout_analysis_results.csv', index=False)
+
+
+# Calculate differences
+merged_df["diff_2mins"] = merged_df["success rate 2mins"] - merged_df["success rate general"]
+merged_df["diff_4mins"] = merged_df["success rate 4mins"] - merged_df["success rate general"]
+merged_df["diff_immediate"] = merged_df["success rate immediate"] - merged_df["success rate general"]
+
+# Paired t-tests
+t_2, p_2 = stats.ttest_rel(merged_df["success rate 2mins"], merged_df["success rate general"])
+t_4, p_4 = stats.ttest_rel(merged_df["success rate 4mins"], merged_df["success rate general"])
+t_im, p_im = stats.ttest_rel(merged_df["success rate immediate"], merged_df["success rate general"])
+
+# Wilcoxon signed-rank tests
+w_2, wp_2 = stats.wilcoxon(merged_df["success rate 2mins"], merged_df["success rate general"])
+w_4, wp_4 = stats.wilcoxon(merged_df["success rate 4mins"], merged_df["success rate general"])
+w_im, wp_im = stats.wilcoxon(merged_df["success rate immediate"], merged_df["success rate general"])
+
+# Pearson correlations
+corr_2, cp_2 = stats.pearsonr(merged_df["success rate general"], merged_df["success rate 2mins"])
+corr_4, cp_4 = stats.pearsonr(merged_df["success rate general"], merged_df["success rate 4mins"])
+corr_im, cp_im = stats.pearsonr(merged_df["success rate general"], merged_df["success rate immediate"])
+
+# Spearman correlations
+scorr_2, sp_2 = stats.spearmanr(merged_df["success rate general"], merged_df["success rate 2mins"])
+scorr_4, sp_4 = stats.spearmanr(merged_df["success rate general"], merged_df["success rate 4mins"])
+scorr_im, sp_im = stats.spearmanr(merged_df["success rate general"], merged_df["success rate immediate"])
+
+results = {
+    "Paired t-test": {
+        "2mins": (t_2, p_2),
+        "4mins": (t_4, p_4),
+        "immediate": (t_im, p_im)
+    },
+    "Wilcoxon": {
+        "2mins": (w_2, wp_2),
+        "4mins": (w_4, wp_4),
+        "immediate": (w_im, wp_im)
+    },
+    "Pearson": {
+        "2mins": (corr_2, cp_2),
+        "4mins": (corr_4, cp_4),
+        "immediate": (corr_im, cp_im)
+    },
+    "Spearman": {
+        "2mins": (scorr_2, sp_2),
+        "4mins": (scorr_4, sp_4),
+        "immediate": (scorr_im, sp_im)
+    }
+}
+
+clean_results = []
+for test, vals in results.items():
+    for condition, (stat, p) in vals.items():
+        clean_results.append({
+            "Test": test,
+            "Condition": condition,
+            "Statistic": round(float(stat), 4),
+            "p-value": round(float(p), 6)
+        })
+
+results_df = pd.DataFrame(clean_results)
+results_df.to_csv('timeout_analysis_statistics.csv', index=False)
+
+
+
+
